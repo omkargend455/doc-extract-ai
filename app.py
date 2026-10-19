@@ -365,10 +365,25 @@ with tab_extract:
                 for k, v in ext_res.fields.items():
                     conf = rev_dec.field_confidences.get(k, 0.0)
                     evidence = rev_dec.evidence.get(k, "")
+
+                    is_jurisdictional_tax = k in {"sgst_amount", "cgst_amount", "igst_amount"}
+                    currency_val = ext_res.fields.get("currency", "USD")
+                    is_non_inr = str(currency_val).upper() != "INR"
+
+                    if v is not None:
+                        display_val = str(v)
+                        conf_str = f"{conf * 100:.1f}%"
+                    elif is_jurisdictional_tax and is_non_inr:
+                        display_val = "N/A (Not Applicable)"
+                        conf_str = "N/A"
+                    else:
+                        display_val = "[Missing]"
+                        conf_str = f"{conf * 100:.1f}%"
+
                     field_rows.append({
                         "Field": k,
-                        "Extracted Value": str(v) if v is not None else "[Missing]",
-                        "Confidence": f"{conf * 100:.1f}%",
+                        "Extracted Value": display_val,
+                        "Confidence": conf_str,
                         "Evidence Rationale": evidence,
                     })
 
@@ -532,9 +547,11 @@ with tab_validate:
                     for k, v in edited_fields.items():
                         if v.strip() == "":
                             cleaned_dict[k] = None
-                        elif any(num_key in k for num_key in ["total", "subtotal", "tax", "discount"]):
+                        elif any(num_key in k for num_key in ["total", "subtotal", "tax", "discount", "sgst", "cgst", "igst"]):
                             try:
-                                cleaned_dict[k] = float(v.replace("$", "").replace(",", "").strip())
+                                cleaned_dict[k] = float(
+                                    v.replace("$", "").replace("RM", "").replace("₹", "").replace("€", "").replace("£", "").replace(",", "").strip()
+                                )
                             except ValueError:
                                 cleaned_dict[k] = v
                         else:

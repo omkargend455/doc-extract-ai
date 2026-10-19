@@ -193,3 +193,95 @@ def test_validate_document_end_to_end():
     assert "required_field_vendor_name" in error_rules
     assert "positive_total_amount" in error_rules
     assert "date_chronology" in error_rules
+
+
+def test_slack_invoice_zero_tax_arithmetic_consistency():
+    """Verify arithmetic validation preserves explicit zero tax for the Slack invoice example."""
+    data = {
+        "vendor_name": "Slack",
+        "invoice_number": "1223113",
+        "invoice_date": "2023-12-01",
+        "due_date": "2024-01-15",
+        "subtotal": 1725.00,
+        "tax_amount": 0.00,
+        "sgst_amount": None,
+        "cgst_amount": None,
+        "igst_amount": None,
+        "discount_amount": 0.00,
+        "total_amount": 1725.00,
+        "currency": "USD",
+    }
+    res = validate_arithmetic_consistency(data)
+    assert len(res) == 1
+    assert res[0].passed is True
+    assert res[0].severity == "INFO"
+    assert res[0].details["subtotal"] == 1725.00
+    assert res[0].details["tax_amount"] == 0.00
+    assert res[0].details["tax_amount"] is not None
+    assert res[0].details["expected_total"] == 1725.00
+    assert res[0].details["stated_total"] == 1725.00
+    assert res[0].details["delta"] == 0.0
+    assert "Tax (0.00)" in res[0].message
+
+
+def test_distinguish_explicit_zero_tax_from_missing_tax():
+    """Verify the pipeline distinguishes explicitly declared zero tax from missing tax."""
+    # Case 1: Explicit zero tax matching total
+    zero_tax_doc = {
+        "subtotal": 100.0,
+        "tax_amount": 0.0,
+        "total_amount": 100.0,
+    }
+    res_zero = validate_arithmetic_consistency(zero_tax_doc)
+    assert res_zero[0].passed is True
+    assert res_zero[0].details["tax_amount"] == 0.0
+    assert "Tax (0.00)" in res_zero[0].message
+
+    # Case 2: Subtotal != total with missing tax -> fails with missing breakdown error
+    missing_tax_mismatch = {
+        "subtotal": 100.0,
+        "tax_amount": None,
+        "total_amount": 118.0,
+    }
+    res_missing = validate_arithmetic_consistency(missing_tax_mismatch)
+    assert res_missing[0].passed is False
+    assert res_missing[0].severity == "ERROR"
+    assert "tax breakdown is missing" in res_missing[0].message.lower()
+    assert res_missing[0].details["tax_amount"] is None
+
+    # Case 3: Subtotal == total with undeclared tax -> passes without fabricating zero tax
+    undeclared_tax_match = {
+        "subtotal": 100.0,
+        "tax_amount": None,
+        "total_amount": 100.0,
+    }
+    res_undec = validate_arithmetic_consistency(undeclared_tax_match)
+    assert res_undec[0].passed is True
+    assert res_undec[0].details["tax_amount"] is None
+
+
+def test_us_invoice_null_jurisdictional_taxes_remain_none():
+    """Verify non-GST invoices keep SGST/CGST/IGST strictly null without fabricating values."""
+    slack_data = {
+        "vendor_name": "Slack",
+        "invoice_number": "1223113",
+        "invoice_date": "2023-12-01",
+        "due_date": "2024-01-15",
+        "subtotal": 1725.00,
+        "tax_amount": 0.00,
+        "sgst_amount": None,
+        "cgst_amount": None,
+        "igst_amount": None,
+        "discount_amount": 0.00,
+        "total_amount": 1725.00,
+        "currency": "USD",
+    }
+    summary = validate_document(slack_data, doc_type="invoice")
+    assert summary.is_valid
+    assert len(summary.errors) == 0
+
+    # Ensure none of the rules failed or threw warnings about missing jurisdictional taxes
+    assert not any("sgst" in r.rule_name.lower() for r in summary.errors)
+    assert not any("cgst" in r.rule_name.lower() for r in summary.errors)
+    assert not any("igst" in r.rule_name.lower() for r in summary.errors)
+

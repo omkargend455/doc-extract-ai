@@ -117,3 +117,139 @@ def test_evidence_grounding_transparency():
         assert len(decision.evidence[f]) > 10  # Non-trivial explanation
         assert f in decision.field_confidences
         assert 0.0 <= decision.field_confidences[f] <= 1.0
+
+
+def test_slack_invoice_zero_tax_confidence_and_routing():
+    """Verify confidence calculation and auto-approval for the Slack invoice example.
+
+    Ground truth:
+      - vendor_name: Slack
+      - invoice_number: 1223113
+      - invoice_date: 2023-12-01
+      - due_date: 2024-01-15
+      - subtotal: 1725.00
+      - tax_amount: 0.00
+      - total_amount: 1725.00
+      - currency: USD
+    """
+    slack_raw_text = """
+    slack INVOICE
+    Slack
+    500 Howard Street, San Francisco, CA 94105
+    Date: Dec 1, 2023
+    Due Date: Jan 15, 2024
+    Invoice #: 1223113
+    Balance Due: $1,725.00
+    Subtotal $1,725.00
+    Tax (0%) $0.00
+    Total $1,725.00
+    """
+    slack_fields = {
+        "vendor_name": "Slack",
+        "invoice_number": "1223113",
+        "invoice_date": "2023-12-01",
+        "due_date": "2024-01-15",
+        "subtotal": 1725.00,
+        "tax_amount": 0.00,
+        "sgst_amount": None,
+        "cgst_amount": None,
+        "igst_amount": None,
+        "discount_amount": 0.00,
+        "total_amount": 1725.00,
+        "currency": "USD",
+    }
+
+    val_summary = validate_document(slack_fields, doc_type="invoice")
+    assert val_summary.is_valid
+    assert len(val_summary.errors) == 0
+
+    decision = determine_review_routing(
+        fields=slack_fields,
+        validation_summary=val_summary,
+        doc_type="invoice",
+        raw_text=slack_raw_text,
+    )
+
+    # 1. Routing must be AUTO_APPROVED with high overall confidence
+    assert decision.status == ReviewStatus.AUTO_APPROVED
+    assert not decision.requires_human_attention
+    assert decision.overall_confidence >= 0.85
+
+    # 2. tax_amount must have high confidence verified by arithmetic balance (not 0.0 or 0.25)
+    assert "tax_amount" in decision.field_confidences
+    assert decision.field_confidences["tax_amount"] >= 0.95
+    assert "verified mathematically" in decision.evidence["tax_amount"]
+    assert "Zero tax" in decision.evidence["tax_amount"]
+
+    # 3. Jurisdictional taxes for US invoice must be recognized as not applicable, not missing failures
+    assert "sgst_amount" in decision.field_confidences
+    assert decision.field_confidences["sgst_amount"] == 1.0
+    assert "not applicable" in decision.evidence["sgst_amount"].lower()
+
+    assert "cgst_amount" in decision.field_confidences
+    assert decision.field_confidences["cgst_amount"] == 1.0
+    assert "not applicable" in decision.evidence["cgst_amount"].lower()
+
+    assert "igst_amount" in decision.field_confidences
+    assert decision.field_confidences["igst_amount"] == 1.0
+    assert "not applicable" in decision.evidence["igst_amount"].lower()
+
+    # 4. Currency and discount must be present in field confidences
+    assert "currency" in decision.field_confidences
+    assert decision.field_confidences["currency"] >= 0.90
+    assert "discount_amount" in decision.field_confidences
+    assert decision.field_confidences["discount_amount"] >= 0.90
+
+
+def test_zero_tax_standalone_confidence_grounded_in_evidence():
+    """Verify zero tax confidence is evidence-grounded and not artificially inflated."""
+    # Case A: Explicit 0% tax notation in document text -> high grounded confidence
+    score_with_text, exp_with_text = compute_field_confidence(
+        field_name="tax_amount",
+        value=0.0,
+        doc_type="invoice",
+        validation_summary=None,
+        raw_text="Item A: $100.00\nTax (0%): $0.00\nTotal: $100.00",
+    )
+    assert score_with_text >= 0.85
+    assert "corroborated" in exp_with_text.lower()
+
+    # Case B: Isolated zero without arithmetic check or explicit text -> moderate score, not inflated
+    score_no_text, exp_no_text = compute_field_confidence(
+        field_name="tax_amount",
+        value=0.0,
+        doc_type="invoice",
+        validation_summary=None,
+        raw_text="Item A: $100.00\nTotal: $100.00",
+    )
+    assert 0.65 <= score_no_text <= 0.75
+    assert "lacks arithmetic" in exp_no_text.lower()
+
+    # Case C: Missing tax is 0.0 confidence (not confused with explicit zero)
+    score_missing, exp_missing = compute_field_confidence(
+        field_name="tax_amount",
+        value=None,
+        doc_type="invoice",
+    )
+    assert score_missing == 0.0
+    assert "missing" in exp_missing.lower()
+
+
+def test_negative_tax_and_amounts_penalized_for_accounting_violation():
+    """Verify negative monetary amounts receive accounting violation penalty."""
+    score_neg_tax, exp_neg_tax = compute_field_confidence(
+        field_name="tax_amount",
+        value=-15.00,
+        doc_type="invoice",
+    )
+    assert score_neg_tax == 0.25
+    assert "negative" in exp_neg_tax.lower()
+
+    score_neg_subtotal, exp_neg_subtotal = compute_field_confidence(
+        field_name="subtotal",
+        value=-100.00,
+        doc_type="invoice",
+    )
+    assert score_neg_subtotal == 0.25
+    assert "negative" in exp_neg_subtotal.lower()
+

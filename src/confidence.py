@@ -16,6 +16,7 @@ def compute_field_confidence(
     doc_type: str,
     validation_summary: Optional[DocumentValidationSummary] = None,
     raw_text: Optional[str] = None,
+    currency: Optional[str] = None,
 ) -> tuple[float, str]:
     """Compute an evidence-based confidence heuristic and explanation for a single field.
 
@@ -23,6 +24,19 @@ def compute_field_confidence(
     never as an authoritative guarantee of correctness.
     """
     if value is None or str(value).strip() == "":
+        is_jurisdictional_tax = field_name in {"sgst_amount", "cgst_amount", "igst_amount"}
+        if is_jurisdictional_tax:
+            is_non_inr = currency is not None and str(currency).upper() != "INR"
+            has_no_gst_mention = bool(
+                raw_text and not re.search(r"\b(?:GST|SGST|CGST|IGST)\b", raw_text, re.IGNORECASE)
+            )
+            if is_non_inr or has_no_gst_mention:
+                return 1.0, f"Jurisdictional tax field '{field_name}' (Indian GST) is not applicable to non-GST document."
+            return 0.0, f"Jurisdictional tax component '{field_name}' not specified in document."
+
+        if field_name == "discount_amount":
+            return 0.85, f"Optional field '{field_name}' not specified; zero default assumed."
+
         return 0.0, f"Field '{field_name}' is missing or empty."
 
     val_str = str(value).strip()
@@ -46,24 +60,67 @@ def compute_field_confidence(
         return 0.95, f"Date matches standard calendar format ({iso_date}) within expected year bounds."
 
     # 2. Total / Amount fields
-    if any(k in field_name for k in ["total", "subtotal", "tax", "discount"]):
+    if any(k in field_name for k in ["total", "subtotal", "tax", "discount", "sgst", "cgst", "igst"]):
         try:
-            amt = float(val_str.replace("$", "").replace("RM", "").replace(",", ""))
+            cleaned = (
+                val_str.replace("$", "")
+                .replace("RM", "")
+                .replace("₹", "")
+                .replace("€", "")
+                .replace("£", "")
+                .replace(",", "")
+                .strip()
+            )
+            amt = float(cleaned)
         except ValueError:
             return 0.20, f"Amount '{val_str}' contains non-numeric tokens."
 
-        if amt <= 0.0 and "discount" not in field_name:
-            return 0.25, f"Monetary amount ({amt:.2f}) is non-positive, which violates accounting rules."
+        is_tax_field = any(k in field_name for k in ["tax", "sgst", "cgst", "igst"])
+        is_discount_field = "discount" in field_name
+        is_total_field = field_name in {"total", "total_amount"}
+
+        # Total amount must be strictly positive (> 0.0)
+        if is_total_field and amt <= 0.0:
+            return 0.25, f"Total amount ({amt:.2f}) is non-positive, which violates accounting rules."
+
+        # Subtotal, tax, and discount cannot be negative (< 0.0)
+        if amt < 0.0:
+            return 0.25, f"Monetary amount ({amt:.2f}) is negative, which violates accounting rules."
 
         # If arithmetic validation passed or failed, adjust confidence evidence
         if validation_summary:
             arithmetic_err = any(e.rule_name == "arithmetic_consistency" for e in validation_summary.errors)
             if arithmetic_err:
+                if is_tax_field and amt == 0.0:
+                    return 0.45, f"Zero tax ({amt:.2f}) parsed, but failed arithmetic cross-check (Subtotal + Tax != Total)."
                 return 0.45, f"Amount ({amt:.2f}) parsed, but failed arithmetic cross-check (Subtotal + Tax != Total)."
 
-            arithmetic_ok = any(r.rule_name == "arithmetic_consistency" and r.passed and "matches Stated Total" in r.message for r in validation_summary.rule_results)
+            arithmetic_ok = any(
+                r.rule_name == "arithmetic_consistency" and r.passed and "matches Stated Total" in r.message
+                for r in validation_summary.rule_results
+            )
             if arithmetic_ok:
+                if is_tax_field and amt == 0.0:
+                    return 0.98, f"Zero tax ({amt:.2f}) verified mathematically against subtotal and total balance."
+                if is_discount_field and amt == 0.0:
+                    return 0.98, f"Zero discount ({amt:.2f}) verified mathematically against subtotal and total balance."
                 return 0.98, f"Amount ({amt:.2f}) verified mathematically against subtotal and tax line items."
+
+        # Standalone handling when arithmetic check did not run or was skipped:
+        if is_tax_field and amt == 0.0:
+            zero_tax_explicit = bool(
+                raw_text and re.search(
+                    r"(?:0%|0\.00%|tax\s*[:(]?\s*0%|tax\s*[:(]?\s*\$?\s*0\.00|zero\s*rated|tax\s*exempt|\bexempt\b)",
+                    raw_text,
+                    re.IGNORECASE,
+                )
+            )
+            if zero_tax_explicit:
+                return 0.90, f"Explicit zero tax ({amt:.2f}) corroborated by zero-rate or exemption text in document."
+            return 0.70, f"Zero tax ({amt:.2f}) extracted as numeric value, but lacks arithmetic cross-check or explicit zero-rate notation."
+
+        if is_discount_field and amt == 0.0:
+            return 0.85, f"Zero discount ({amt:.2f}) standard default for non-discounted invoice."
 
         return 0.88, f"Amount ({amt:.2f}) parsed successfully as positive decimal currency."
 
@@ -94,6 +151,13 @@ def compute_field_confidence(
         if re.match(r"^[A-Za-z0-9\-_/#]{3,30}$", val_str):
             return 0.90, f"Invoice number '{val_str}' conforms to standard alphanumeric identifier format."
         return 0.60, f"Invoice number '{val_str}' contains unexpected characters or irregular length."
+
+    # 6. Currency field
+    if field_name == "currency":
+        known_currencies = {"USD", "EUR", "INR", "MYR", "GBP", "CAD", "AUD", "SGD", "JPY", "CHF"}
+        if val_str.upper() in known_currencies:
+            return 0.95, f"Standard currency ISO code ({val_str.upper()}) recognized."
+        return 0.75, f"Currency identifier '{val_str}' extracted."
 
     # Fallback for generic text fields
     return 0.75, f"Field '{field_name}' populated with non-empty string."
@@ -127,7 +191,14 @@ def compute_composite_confidence(
             "address": 0.15,
         }
 
-    for field_name in weights:
+    # Ensure all extracted fields have transparent confidence and evidence entries
+    all_field_names = list(weights.keys())
+    for k in fields.keys():
+        if k not in all_field_names:
+            all_field_names.append(k)
+
+    doc_currency = fields.get("currency")
+    for field_name in all_field_names:
         val = fields.get(field_name)
         score, explanation = compute_field_confidence(
             field_name=field_name,
@@ -135,13 +206,14 @@ def compute_composite_confidence(
             doc_type=doc_type,
             validation_summary=validation_summary,
             raw_text=raw_text,
+            currency=doc_currency,
         )
         field_confidences[field_name] = round(score, 3)
         evidence[field_name] = explanation
 
-    # Compute weighted sum
-    weighted_sum = sum(field_confidences[f] * w for f, w in weights.items())
-    total_weights = sum(weights.values())
+    # Compute weighted sum based on core schema weights
+    weighted_sum = sum(field_confidences[f] * w for f, w in weights.items() if f in field_confidences)
+    total_weights = sum(w for f, w in weights.items() if f in field_confidences)
     raw_overall = weighted_sum / total_weights if total_weights else 0.0
 
     # Validation penalty: if errors exist, scale down overall confidence
