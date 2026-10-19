@@ -5,8 +5,8 @@ plotly>=5.18.0
 # Data modeling & schema validation
 pydantic>=2.5.0
 
-# Google GenAI SDK (Gemini extraction)
-google-genai>=0.1.1
+# Hosted LLM SDK (NVIDIA NIM OpenAI-compatible API)
+openai>=1.0.0
 
 # Document ingestion & OCR
 pymupdf>=1.24.0

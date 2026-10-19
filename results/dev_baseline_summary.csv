@@ -1,0 +1,6 @@
+Field,Exact Match (%),Normalized Match (%),Avg RapidFuzz Score
+company,12.32,39.26,55.42
+date,57.88,68.19,77.52
+address,0.00,69.05,79.54
+total,39.54,52.44,74.79
+MACRO AVERAGE,27.44,57.23,71.82

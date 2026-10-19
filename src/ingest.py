@@ -42,6 +42,7 @@ class IngestionResult:
     ocr_applied: bool = False
     warning: Optional[str] = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    image_bytes: Optional[bytes] = None
 
 
 def extract_text_from_pdf(pdf_source: str | Path | bytes | BinaryIO) -> IngestionResult:
@@ -91,6 +92,15 @@ def extract_text_from_pdf(pdf_source: str | Path | bytes | BinaryIO) -> Ingestio
                 "The file appears to be a scanned document or image-only PDF."
             )
 
+        # Render first page to jpeg for optional visual/multimodal model inspection
+        image_bytes = None
+        try:
+            if page_count > 0:
+                pix = doc[0].get_pixmap(dpi=150)
+                image_bytes = pix.tobytes("jpeg")
+        except Exception:
+            image_bytes = None
+
         return IngestionResult(
             text=full_text,
             source_type=source_type,
@@ -104,6 +114,7 @@ def extract_text_from_pdf(pdf_source: str | Path | bytes | BinaryIO) -> Ingestio
                 "pdf_metadata": doc.metadata,
                 "page_count": page_count,
             },
+            image_bytes=image_bytes,
         )
     finally:
         doc.close()
@@ -159,6 +170,15 @@ def extract_text_from_image(
     cleaned_text = ocr_text.strip()
     char_count = len(cleaned_text)
 
+    # Convert image to jpeg bytes for optional visual/multimodal model inspection
+    image_bytes = None
+    try:
+        buf = io.BytesIO()
+        img.convert("RGB").save(buf, format="JPEG", quality=85)
+        image_bytes = buf.getvalue()
+    except Exception:
+        image_bytes = None
+
     return IngestionResult(
         text=cleaned_text,
         source_type="image",
@@ -173,6 +193,7 @@ def extract_text_from_image(
             "image_mode": img.mode,
             "tesseract_path": TESSERACT_PATH,
         },
+        image_bytes=image_bytes,
     )
 
 
