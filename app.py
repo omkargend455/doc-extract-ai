@@ -25,6 +25,7 @@ if str(BASE_DIR) not in sys.path:
 from src.config import (
     get_system_status,
     is_nvidia_available,
+    get_configured_nvidia_api_key,
     DEFAULT_NVIDIA_MODEL,
     NVIDIA_BASE_URL,
     SAMPLE_INVOICES_DIR,
@@ -35,7 +36,7 @@ from src.config import (
 from src.ingest import ingest_document, IngestionResult, TESSERACT_GUIDANCE_MESSAGE
 from src.schemas import load_ground_truth, ReviewStatus, ExtractionResult, DocumentValidationSummary, ReviewDecision
 from src.baseline_regex import RegexBaselineExtractor
-from src.nvidia_extractor import NvidiaExtractor, get_configured_nvidia_api_key
+from src.nvidia_extractor import NvidiaExtractor
 from src.extractor_dispatcher import extract_with_provider
 from src.validators import validate_document
 from src.confidence import determine_review_routing
@@ -119,17 +120,22 @@ with st.sidebar:
         help="Select extraction engine. Auto prioritizes hosted NVIDIA NIM if an API key is configured, otherwise runs the deterministic offline baseline.",
     )
 
-    st.markdown("#### NVIDIA NIM Credentials & Models")
+    st.markdown("#### NVIDIA NIM Configuration")
 
-    # NVIDIA Settings
-    env_nvidia_key = get_configured_nvidia_api_key()
-    user_nvidia_key = st.text_input(
-        "NVIDIA API Key (Optional):",
-        value=env_nvidia_key or "",
-        type="password",
-        help="Enter your NVIDIA API key (nvapi-...) or set NVIDIA_API_KEY in your .env file.",
-    )
-    active_nvidia_key = user_nvidia_key.strip() if user_nvidia_key.strip() else None
+    # Automatically resolve key from Streamlit secrets or environment (no manual entry required)
+    active_nvidia_key = get_configured_nvidia_api_key()
+
+    if active_nvidia_key:
+        st.success("🟢 NVIDIA NIM Configured (Secrets / Env)")
+    else:
+        st.info("⚪ NVIDIA NIM Unconfigured — Offline Baseline Active")
+        with st.expander("NVIDIA NIM Setup Guide", expanded=False):
+            st.caption(
+                "To enable hosted LLM extraction, add `NVIDIA_API_KEY = \"nvapi-...\"` to "
+                "`.streamlit/secrets.toml` or configure it in Streamlit Cloud Secrets. "
+                "You can also set the `NVIDIA_API_KEY` environment variable. "
+                "Without a key, DocExtract AI runs seamlessly in zero-cost offline baseline mode."
+            )
 
     selected_nvidia_model = st.selectbox(
         "NVIDIA Model:",

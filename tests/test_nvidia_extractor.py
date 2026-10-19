@@ -6,11 +6,18 @@ from unittest.mock import MagicMock, patch
 import pytest
 import openai
 
-from src.config import DEFAULT_NVIDIA_MODEL, NVIDIA_BASE_URL, SUPPORTED_NVIDIA_MODELS
+import streamlit as st
+
+from src.config import (
+    DEFAULT_NVIDIA_MODEL,
+    NVIDIA_BASE_URL,
+    SUPPORTED_NVIDIA_MODELS,
+    is_nvidia_available,
+    get_configured_nvidia_api_key,
+)
 from src.schemas import ExtractionResult
 from src.nvidia_extractor import (
     NvidiaExtractor,
-    get_configured_nvidia_api_key,
     get_nvidia_model_config,
     sanitize_error_message,
     NVIDIA_MODEL_CONFIGS,
@@ -40,18 +47,107 @@ Total Amount: $550.00
 DUMMY_IMAGE_BYTES = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb"
 
 
-def test_get_configured_nvidia_api_key(monkeypatch):
-    """Test API key resolution order: explicit > env > None."""
-    # 1. Explicit key takes precedence
+def test_get_configured_nvidia_api_key_resolution_order(monkeypatch):
+    """Test API key resolution order: explicit > env > streamlit secrets > None."""
+    # 1. Explicit key takes precedence over both env and secrets
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-env-key-456")
+    monkeypatch.setattr(st, "secrets", {"NVIDIA_API_KEY": "nvapi-secret-key-789"})
     assert get_configured_nvidia_api_key("nvapi-explicit-123") == "nvapi-explicit-123"
 
-    # 2. Environment variable
-    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-env-key-456")
+    # 2. Environment variable takes precedence over Streamlit secret
     assert get_configured_nvidia_api_key() == "nvapi-env-key-456"
 
-    # 3. None when unset
+    # 3. Streamlit secret is used when environment variable is absent
     monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    assert get_configured_nvidia_api_key() == "nvapi-secret-key-789"
+
+    # 4. None when both environment variable and secrets are unset
+    monkeypatch.setattr(st, "secrets", {})
     assert get_configured_nvidia_api_key() is None
+
+
+def test_streamlit_secret_resolution_when_env_absent(monkeypatch):
+    """Verify that NVIDIA NIM resolves its key from Streamlit secrets when NVIDIA_API_KEY env var is absent."""
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.setattr(st, "secrets", {"NVIDIA_API_KEY": "nvapi-st-secret-abc"})
+
+    resolved = get_configured_nvidia_api_key()
+    assert resolved == "nvapi-st-secret-abc"
+    assert is_nvidia_available() is True
+
+    # Extractor initialized without arguments automatically resolves the secret
+    extractor = NvidiaExtractor()
+    assert extractor.api_key == "nvapi-st-secret-abc"
+    assert extractor.is_available() is True
+
+
+def test_env_precedence_over_streamlit_secrets(monkeypatch):
+    """Verify that process environment variable takes precedence when both env and Streamlit secrets are set."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-priority-env")
+    monkeypatch.setattr(st, "secrets", {"NVIDIA_API_KEY": "nvapi-ignored-secret"})
+
+    assert get_configured_nvidia_api_key() == "nvapi-priority-env"
+    extractor = NvidiaExtractor()
+    assert extractor.api_key == "nvapi-priority-env"
+
+
+def test_missing_secrets_handles_gracefully_without_crash(monkeypatch):
+    """Verify that missing secrets or Streamlit exceptions do not crash the helper and safely return None."""
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+
+    # Simulate an object whose .get() raises an unexpected exception (e.g. StreamlitSecretNotFoundError)
+    class BrokenSecrets:
+        def get(self, key, default=None):
+            raise RuntimeError("Streamlit secrets not accessible")
+
+    monkeypatch.setattr(st, "secrets", BrokenSecrets())
+    assert get_configured_nvidia_api_key() is None
+    assert is_nvidia_available() is False
+
+
+def test_absent_key_safely_falls_back_to_baseline(monkeypatch):
+    """Verify that when no key exists in env or secrets, extract_with_provider safely falls back to baseline."""
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.setattr(st, "secrets", {})
+
+    res = extract_with_provider(
+        text=RECEIPT_SAMPLE_TEXT,
+        doc_type="receipt",
+        doc_id="test_fallback_no_key",
+        mode="auto",
+    )
+    assert res.source == "baseline"
+    assert res.provider == "regex"
+    assert res.model_used is None
+    assert "NVIDIA API key not configured" in res.error_message
+    assert res.fields["total"] == "42.10"
+
+
+def test_secret_values_never_appear_in_results_metadata_or_errors(monkeypatch):
+    """Verify that secret keys never leak into extraction results, metadata, or exception diagnostics."""
+    sensitive_secret = "nvapi-super-confidential-secret-key-xyz"
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.setattr(st, "secrets", {"NVIDIA_API_KEY": sensitive_secret})
+
+    with patch("openai.OpenAI") as mock_openai_cls:
+        mock_client = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 401
+        mock_client.chat.completions.create.side_effect = openai.AuthenticationError(
+            message=f"Unauthorized access with {sensitive_secret}",
+            response=mock_resp,
+            body={"error": {"message": f"Unauthorized {sensitive_secret}"}},
+        )
+        mock_openai_cls.return_value = mock_client
+
+        extractor = NvidiaExtractor()
+        res = extractor.extract(RECEIPT_SAMPLE_TEXT, doc_type="receipt", doc_id="leak_test_01")
+
+        # Secret must never be in error message, metadata, or result representation
+        assert sensitive_secret not in (res.error_message or "")
+        assert "[REDACTED_API_KEY]" in (res.error_message or "")
+        assert sensitive_secret not in json.dumps(res.metadata)
+        assert sensitive_secret not in str(res.fields)
 
 
 def test_nvidia_sanitize_error_message():

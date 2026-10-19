@@ -11,7 +11,7 @@ from typing import Any, Optional
 import openai
 from pydantic import ValidationError
 
-from src.config import DEFAULT_NVIDIA_MODEL, NVIDIA_BASE_URL
+from src.config import DEFAULT_NVIDIA_MODEL, NVIDIA_BASE_URL, get_configured_nvidia_api_key
 from src.baseline_regex import RegexBaselineExtractor
 from src.schemas import ExtractionResult, InvoiceGroundTruth, ReceiptGroundTruth
 
@@ -121,29 +121,6 @@ def sanitize_error_message(msg: str, key_to_mask: Optional[str] = None) -> str:
     sanitized = re.sub(r"Bearer\s+[A-Za-z0-9_\-\.]+", "Bearer [REDACTED]", sanitized, flags=re.IGNORECASE)
     return sanitized
 
-
-def get_configured_nvidia_api_key(explicit_key: Optional[str] = None) -> Optional[str]:
-    """Retrieve NVIDIA API key from argument, environment variables, or Streamlit secrets.
-
-    Never logs, persists, or commits credentials.
-    """
-    if explicit_key is not None:
-        return explicit_key.strip() if explicit_key.strip() else None
-
-    env_key = os.environ.get("NVIDIA_API_KEY")
-    if env_key and env_key.strip():
-        return env_key.strip()
-
-    try:
-        import streamlit as st
-        if hasattr(st, "secrets") and "NVIDIA_API_KEY" in st.secrets:
-            sec_key = st.secrets["NVIDIA_API_KEY"]
-            if sec_key and str(sec_key).strip():
-                return str(sec_key).strip()
-    except Exception:
-        pass
-
-    return None
 
 
 class NvidiaExtractor:
