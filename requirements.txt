@@ -1,0 +1,22 @@
+# Web application & interactive UI
+streamlit>=1.38.0
+plotly>=5.18.0
+
+# Data modeling & schema validation
+pydantic>=2.5.0
+
+# Google GenAI SDK (Gemini extraction)
+google-genai>=0.1.1
+
+# Document ingestion & OCR
+pymupdf>=1.24.0
+pillow>=10.0.0
+pytesseract>=0.3.10
+
+# Evaluation, tabular manipulation & fuzzy string matching
+pandas>=2.1.0
+rapidfuzz>=3.6.0
+
+# Environment management & unit testing
+python-dotenv>=1.0.0
+pytest>=8.0.0
