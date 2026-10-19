@@ -1,0 +1,30 @@
+{
+  "doc_id": "inv_synth_01_valid_standard",
+  "doc_type": "invoice",
+  "vendor_name": "Apex Office Supplies Ltd",
+  "invoice_number": "INV-2026-001",
+  "invoice_date": "2026-10-01",
+  "due_date": "2026-10-31",
+  "subtotal": 200.0,
+  "tax_amount": 20.0,
+  "discount_amount": 0.0,
+  "total_amount": 220.0,
+  "currency": "USD",
+  "items": [
+    {
+      "description": "Premium Copy Paper",
+      "quantity": 2,
+      "unit_price": 40.0,
+      "amount": 80.0
+    },
+    {
+      "description": "Ergonomic Desk Chairs",
+      "quantity": 1,
+      "unit_price": 120.0,
+      "amount": 120.0
+    }
+  ],
+  "expected_valid": true,
+  "injected_errors": [],
+  "raw_text": "# TAX INVOICE\n=== separator ===\n[B]Vendor: Apex Office Supplies Ltd\nAddress: 100 Commercial Way, Tech District, Boston MA\nEmail: billing@apexsupplies.example.com\n\nInvoice Number: INV-2026-001\nInvoice Date: 2026-10-01\nPayment Due Date: 2026-10-31\nCurrency: USD\n=== separator ===\n## Line Items:\n1. Premium Copy Paper (5 Reams) - Quantity: 2 @ $40.00 = $80.00\n2. Ergonomic Desk Chairs - Quantity: 1 @ $120.00 = $120.00\n=== separator ===\nSubtotal: $200.00\nTax Amount (10%): $20.00\nDiscount Amount: $0.00\n[B]Total Amount Due: $220.00\n=== separator ===\nPayment Terms: Net 30 days. Thank you for your business!"
+}

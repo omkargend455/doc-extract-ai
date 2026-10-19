@@ -1,0 +1,19 @@
+{
+  "doc_id": "inv_synth_03_arithmetic_mismatch",
+  "doc_type": "invoice",
+  "vendor_name": "Horizon Logistics Group",
+  "invoice_number": "INV-2026-088",
+  "invoice_date": "2026-10-12",
+  "due_date": "2026-11-12",
+  "subtotal": 300.0,
+  "tax_amount": 30.0,
+  "discount_amount": 0.0,
+  "total_amount": 375.0,
+  "currency": "USD",
+  "items": [],
+  "expected_valid": false,
+  "injected_errors": [
+    "arithmetic_mismatch"
+  ],
+  "raw_text": "# INVOICE (TAMPERED / MISMATCH)\n=== separator ===\n[B]Vendor: Horizon Logistics Group\nInvoice Number: INV-2026-088\nInvoice Date: 2026-10-12\nPayment Due Date: 2026-11-12\n=== separator ===\nSubtotal: $300.00\nTax Amount: $30.00\nDiscount: $0.00\n[B]Total Amount: $375.00\n=== separator ===\nNote: Arithmetic mismatch injected (Expected 330.00, printed 375.00)"
+}

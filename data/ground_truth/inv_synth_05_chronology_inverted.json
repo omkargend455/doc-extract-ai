@@ -1,0 +1,19 @@
+{
+  "doc_id": "inv_synth_05_chronology_inverted",
+  "doc_type": "invoice",
+  "vendor_name": "CloudBridge Networks",
+  "invoice_number": "INV-2026-199",
+  "invoice_date": "2026-11-20",
+  "due_date": "2026-10-15",
+  "subtotal": 600.0,
+  "tax_amount": 60.0,
+  "discount_amount": 0.0,
+  "total_amount": 660.0,
+  "currency": "USD",
+  "items": [],
+  "expected_valid": false,
+  "injected_errors": [
+    "due_date_before_invoice_date"
+  ],
+  "raw_text": "# TAX INVOICE\n=== separator ===\n[B]Vendor: CloudBridge Networks\nInvoice Number: INV-2026-199\nInvoice Date: 2026-11-20\nPayment Due Date: 2026-10-15\n=== separator ===\nSubtotal: $600.00\nTax Amount: $60.00\n[B]Total Amount: $660.00\n=== separator ===\nNote: Due date is set before the invoice issue date."
+}

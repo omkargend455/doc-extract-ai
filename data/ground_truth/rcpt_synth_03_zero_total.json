@@ -1,0 +1,10 @@
+{
+  "doc_id": "rcpt_synth_03_zero_total",
+  "doc_type": "receipt",
+  "company": "BLUE HORIZON CAFE",
+  "date": "2026-09-30",
+  "address": "88 OCEAN DRIVE, MIAMI, FL 33139",
+  "total": 0.0,
+  "raw_text": "# BLUE HORIZON CAFE\n88 OCEAN DRIVE, MIAMI, FL 33139\nDATE: 2026-09-30\n=== separator ===\nPROMO ITEM: COMPLIMENTARY WATER\n=== separator ===\n[B]TOTAL AMOUNT: $0.00\n=== separator ===",
+  "notes": "Synthetic receipt with zero total"
+}

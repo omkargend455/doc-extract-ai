@@ -1,0 +1,10 @@
+{
+  "doc_id": "rcpt_synth_01_valid_standard",
+  "doc_type": "receipt",
+  "company": "CYNBIT COFFEE ROASTERS",
+  "date": "2026-10-18",
+  "address": "14 INDUSTRIAL AREA, MALVIYA NAGAR, JAIPUR, RAJASTHAN 302017",
+  "total": 16.5,
+  "raw_text": "# CYNBIT COFFEE ROASTERS\n14 INDUSTRIAL AREA, MALVIYA NAGAR\nJAIPUR, RAJASTHAN 302017\nTEL: +91 141 555 0199\n=== separator ===\nRECEIPT NO: RCP-88321\nDATE: 2026-10-18 09:42\nCASHIER: AMIT\n=== separator ===\n1 ESPRESSO SINGLE         4.50\n1 OAT MILK LATTE          6.00\n1 CROISSANT               5.00\nTAX                       1.00\n=== separator ===\n[B]TOTAL AMOUNT: $16.50\nCASH TENDERED:   $20.00\nCHANGE:           $3.50\n=== separator ===\nTHANK YOU FOR VISITING CYNBIT COFFEE!",
+  "notes": "Synthetic valid receipt for SROIE 4-field baseline testing"
+}

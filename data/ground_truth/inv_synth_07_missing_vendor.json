@@ -1,0 +1,19 @@
+{
+  "doc_id": "inv_synth_07_missing_vendor",
+  "doc_type": "invoice",
+  "vendor_name": null,
+  "invoice_number": "INV-2026-301",
+  "invoice_date": "2026-10-16",
+  "due_date": "2026-11-16",
+  "subtotal": 180.0,
+  "tax_amount": 18.0,
+  "discount_amount": 0.0,
+  "total_amount": 198.0,
+  "currency": "USD",
+  "items": [],
+  "expected_valid": false,
+  "injected_errors": [
+    "missing_vendor_name"
+  ],
+  "raw_text": "# BILLING STATEMENT\n=== separator ===\nAddress: 77 Anonymous Boulevard, Unknown City\nInvoice Number: INV-2026-301\nInvoice Date: 2026-10-16\nPayment Due Date: 2026-11-16\n=== separator ===\nSubtotal: $180.00\nTax Amount: $18.00\n[B]Total Amount: $198.00\n=== separator ===\nNote: Vendor or company name is omitted entirely."
+}

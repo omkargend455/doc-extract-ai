@@ -1,0 +1,30 @@
+{
+  "doc_id": "inv_synth_02_valid_discount",
+  "doc_type": "invoice",
+  "vendor_name": "TechFlow Infrastructure Inc",
+  "invoice_number": "INV-2026-042",
+  "invoice_date": "2026-10-05",
+  "due_date": "2026-11-05",
+  "subtotal": 450.0,
+  "tax_amount": 36.0,
+  "discount_amount": 50.0,
+  "total_amount": 436.0,
+  "currency": "USD",
+  "items": [
+    {
+      "description": "Dedicated Cloud Instance",
+      "quantity": 1,
+      "unit_price": 300.0,
+      "amount": 300.0
+    },
+    {
+      "description": "Automated Backup Storage",
+      "quantity": 1,
+      "unit_price": 150.0,
+      "amount": 150.0
+    }
+  ],
+  "expected_valid": true,
+  "injected_errors": [],
+  "raw_text": "# INVOICE\n=== separator ===\n[B]Vendor: TechFlow Infrastructure Inc\nAddress: 500 Silicon Way, Suite 400, Austin TX\n\nInvoice Number: INV-2026-042\nInvoice Date: 2026-10-05\nPayment Due Date: 2026-11-05\nCurrency: USD\n=== separator ===\n## Summary of Services:\n1. Dedicated Cloud Instance (Monthly) - $300.00\n2. Automated Backup Storage - $150.00\n=== separator ===\nSubtotal: $450.00\nTax Amount: $36.00\nPromotional Discount: $50.00\n[B]Total Amount Due: $436.00\n=== separator ===\nCalculation: $450.00 + $36.00 - $50.00 = $436.00"
+}

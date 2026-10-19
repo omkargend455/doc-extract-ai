@@ -1,0 +1,10 @@
+{
+  "doc_id": "rcpt_synth_02_missing_date",
+  "doc_type": "receipt",
+  "company": "QUICK STOP CONVENIENCE",
+  "date": null,
+  "address": "742 EVERGREEN TERRACE, SPRINGFIELD",
+  "total": 28.9,
+  "raw_text": "# QUICK STOP CONVENIENCE\n742 EVERGREEN TERRACE, SPRINGFIELD\n=== separator ===\nITEM A                    15.00\nITEM B                    12.00\nTAX                        1.90\n=== separator ===\n[B]TOTAL AMOUNT: $28.90\n=== separator ===\nNote: Receipt date is omitted.",
+  "notes": "Synthetic receipt edge-case missing date"
+}
