@@ -180,7 +180,7 @@ Companion reports detailing business and engineering analyses are located in [`r
 ### 2. Environment Setup
 ```bash
 # Clone the repository
-git clone https://github.com/Omkar-Kharmate/doc-extract-ai.git
+git clone https://github.com/omkargend455/doc-extract-ai.git
 cd doc-extract-ai
 
 # Create and activate virtual environment
