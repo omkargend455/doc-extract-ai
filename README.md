@@ -228,7 +228,3 @@ As documented in Section 7.3 of the Technical Approach Report, a proposed future
 - **Multi-Tenant Controls:** Tenant-level data isolation to ensure role-based access control across multi-client platforms like Cynbit's *TenantEase*.
 
 ---
-
-## ⚖️ Attribution
-
-Developed by **Omkar Kharmate** for the **Cynbit Technologies AI/ML Engineer Intern Technical Assessment**.
